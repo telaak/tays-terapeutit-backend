@@ -3,6 +3,8 @@ import { createClient } from "redis";
 import { createServer } from "http";
 import express, { Response } from "express";
 import cors from "cors";
+import * as dotenv from 'dotenv'
+dotenv.config()
 
 const app = express();
 app.use(express.json());
@@ -11,7 +13,7 @@ const server = createServer(app);
 server.listen(4500);
 
 const client = createClient({
-  url: "redis://localhost:6379",
+  url: process.env.REDIS,
 });
 
 const links = [
@@ -31,8 +33,12 @@ const links = [
 ];
 
 app.get("/api/therapists", async (req, res) => {
+  const exists = await client.exists("therapists");
+  if (!exists) {
+    await parseLinks();
+  }
   const therapists = (await client.get("therapists")) as string;
-  const therapistsJson = JSON.parse(therapists)
+  const therapistsJson = JSON.parse(therapists);
   res.json(therapistsJson);
 });
 
@@ -40,7 +46,7 @@ client.connect().then(async () => {
   const therapists = (await client.get("therapists")) as string;
   const therapistsJson = JSON.parse(therapists);
   console.log(therapistsJson);
- // await client.disconnect();
+  // await client.disconnect();
 });
 
 const parseLinks = async () => {
