@@ -3,8 +3,8 @@ import { createClient } from "redis";
 import { createServer } from "http";
 import express, { Response } from "express";
 import cors from "cors";
-import * as dotenv from 'dotenv'
-dotenv.config()
+import * as dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
 app.use(express.json());
@@ -15,6 +15,8 @@ server.listen(4500);
 const client = createClient({
   url: process.env.REDIS,
 });
+
+const therapistHrefSet: Set<string> = new Set();
 
 const links = [
   "https://www.tays.fi/fi-FI/Sairaanhoitopiiri/Alueellinen_yhteistyo/Mielenterveystyo/Terapeuttirekisteri/Hahmo_eli_gestaltterapia",
@@ -32,9 +34,11 @@ const links = [
   "https://www.tays.fi/fi-FI/Sairaanhoitopiiri/Alueellinen_yhteistyo/Mielenterveystyo/Terapeuttirekisteri/Ryhmapsykoterapia",
 ];
 
+const forceUpdate = JSON.parse(process.env.FORCE_UPDATE as string)
+
 app.get("/api/therapists", async (req, res) => {
   const exists = await client.exists("therapists");
-  if (!exists) {
+  if (!exists || forceUpdate) {
     await parseLinks();
   }
   const therapists = (await client.get("therapists")) as string;
@@ -45,7 +49,7 @@ app.get("/api/therapists", async (req, res) => {
 client.connect().then(async () => {
   const therapists = (await client.get("therapists")) as string;
   const therapistsJson = JSON.parse(therapists);
-  console.log(therapistsJson);
+  //console.log(therapistsJson);
   // await client.disconnect();
 });
 
@@ -80,22 +84,28 @@ const parseHtml = async (html: string) => {
     const Tilaa = children[1]?.textContent?.trim();
     const Paikkakunta = children[2]?.textContent?.trim();
     const Kohderyhmä = children[3]?.textContent?.trim();
-    const moreData = await parseTherapist(`https://tays.fi/${href}`);
-    therapists.push({
-      Etunimi,
-      Sukunimi,
-      Tilaa,
-      Paikkakunta,
-      Kohderyhmä,
-      ...moreData,
-    });
+    if (therapistHrefSet.has(href)) {
+      console.log(`duplicate: ${href}`)
+    } else {
+      therapistHrefSet.add(href);
+      console.log(href)
+      const moreData = await parseTherapist(`https://tays.fi/${href}`);
+      therapists.push({
+        Etunimi,
+        Sukunimi,
+        Tilaa,
+        Paikkakunta,
+        Kohderyhmä,
+        ...moreData,
+      });
+    }
+   
   }
 
   return therapists;
 };
 
 const parseTherapist = async (href: string) => {
-  console.log(href);
   const html = await fetch(href).then((res) => res.text().then((html) => html));
   const document = new JSDOM(html).window.document;
   const table = document.querySelector("table") as HTMLTableElement;

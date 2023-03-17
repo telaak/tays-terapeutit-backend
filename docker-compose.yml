@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis/redis-stack-server
+    restart: always
+    
+
+  backend:
+    image: telaaks/tays-terapeutit-backend
+    restart: always
+    environment:
+      - REDIS=redis://redis:6379
+    ports:
+      - 4500:4500
