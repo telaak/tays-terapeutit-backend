@@ -4,6 +4,8 @@ import { createServer } from "http";
 import express from "express";
 import cors from "cors";
 import * as dotenv from "dotenv";
+import cron from 'node-cron';
+
 dotenv.config();
 
 const app = express();
@@ -33,6 +35,15 @@ const links = [
   "https://www.tays.fi/fi-FI/Sairaanhoitopiiri/Alueellinen_yhteistyo/Mielenterveystyo/Terapeuttirekisteri/Ratkaisukeskeinen",
   "https://www.tays.fi/fi-FI/Sairaanhoitopiiri/Alueellinen_yhteistyo/Mielenterveystyo/Terapeuttirekisteri/Ryhmapsykoterapia",
 ];
+
+cron.schedule('0 10 * * *', () => {
+  console.log('running every day at 10:00');
+  try {
+    parseLinks()
+  } catch (error) {
+    console.error(error)
+  }
+});
 
 app.get("/api/therapists", async (req, res) => {
   const exists = await client.exists("therapists");
