@@ -1,7 +1,7 @@
 import { JSDOM } from "jsdom";
 import { createClient } from "redis";
 import { createServer } from "http";
-import express, { Response } from "express";
+import express from "express";
 import cors from "cors";
 import * as dotenv from "dotenv";
 dotenv.config();
@@ -34,24 +34,33 @@ const links = [
   "https://www.tays.fi/fi-FI/Sairaanhoitopiiri/Alueellinen_yhteistyo/Mielenterveystyo/Terapeuttirekisteri/Ryhmapsykoterapia",
 ];
 
-const forceUpdate = JSON.parse(process.env.FORCE_UPDATE as string)
-
 app.get("/api/therapists", async (req, res) => {
   const exists = await client.exists("therapists");
-  if (!exists || forceUpdate) {
-    await parseLinks();
+  if (!exists) {
+    res.sendStatus(404);
   }
-  const therapists = (await client.get("therapists")) as string;
-  const therapistsJson = JSON.parse(therapists);
-  res.json(therapistsJson);
+  try {
+    const therapists = (await client.get("therapists")) as string;
+    const therapistsJson = JSON.parse(therapists);
+    res.json(therapistsJson);
+  } catch (error) {
+    res.status(500).send(error);
+  }
 });
 
 client.connect().then(async () => {
-  const therapists = (await client.get("therapists")) as string;
-  const therapistsJson = JSON.parse(therapists);
-  //console.log(therapistsJson);
+  const forceUpdate = JSON.parse(process.env.FORCE_UPDATE as string);
+  if (forceUpdate) {
+    await parseLinks();
+  }
   // await client.disconnect();
 });
+
+const revalidateNext = async () => {
+  return fetch(
+    `${process.env.NEXT_URL}/api/revalidate?secret=${process.env.REVALIDATE_TOKEN}`
+  ).then((res) => res.json().then((json) => console.log(json)));
+};
 
 const parseLinks = async () => {
   const allTherapists: any[] = [];
@@ -64,6 +73,11 @@ const parseLinks = async () => {
   }
   console.log(allTherapists);
   await client.set("therapists", JSON.stringify(allTherapists));
+  try {
+    await revalidateNext()
+  } catch (error) {
+    console.log(error)
+  }
 };
 
 const parseHtml = async (html: string) => {
@@ -85,10 +99,10 @@ const parseHtml = async (html: string) => {
     const Paikkakunta = children[2]?.textContent?.trim();
     const Kohderyhmä = children[3]?.textContent?.trim();
     if (therapistHrefSet.has(href)) {
-      console.log(`duplicate: ${href}`)
+      console.log(`duplicate: ${href}`);
     } else {
       therapistHrefSet.add(href);
-      console.log(href)
+      console.log(href);
       const moreData = await parseTherapist(`https://tays.fi/${href}`);
       therapists.push({
         Etunimi,
@@ -99,7 +113,6 @@ const parseHtml = async (html: string) => {
         ...moreData,
       });
     }
-   
   }
 
   return therapists;
@@ -111,7 +124,10 @@ const parseTherapist = async (href: string) => {
   const table = document.querySelector("table") as HTMLTableElement;
   const rows = table.querySelectorAll("tr");
   const rowArray = Array.from(rows);
-  let object: any = {};
+  const Vastaanotot = Array.from(rowArray[0].children)
+    .filter((n) => n.textContent)
+    .map((n) => n.textContent);
+  let object: any = { Vastaanotot, href };
   rowArray.slice(2).forEach((row) => {
     const key = row?.children[0]?.textContent
       ?.trim()
