@@ -36,10 +36,11 @@ const links = [
   "https://www.tays.fi/fi-FI/Sairaanhoitopiiri/Alueellinen_yhteistyo/Mielenterveystyo/Terapeuttirekisteri/Ryhmapsykoterapia",
 ];
 
-cron.schedule('0 10 * * *', () => {
+cron.schedule('0 10 * * *', async () => {
   console.log('running every day at 10:00');
   try {
-    parseLinks()
+    await parseLinks()
+    therapistHrefSet.clear()
   } catch (error) {
     console.error(error)
   }
@@ -63,6 +64,7 @@ client.connect().then(async () => {
   const forceUpdate = JSON.parse(process.env.FORCE_UPDATE as string);
   if (forceUpdate) {
     await parseLinks();
+    therapistHrefSet.clear()
   }
   // await client.disconnect();
 });
