@@ -4,7 +4,7 @@ import { createServer } from "http";
 import express from "express";
 import cors from "cors";
 import * as dotenv from "dotenv";
-import cron from 'node-cron';
+import cron from "node-cron";
 
 dotenv.config();
 
@@ -36,13 +36,13 @@ const links = [
   "https://www.tays.fi/fi-FI/Sairaanhoitopiiri/Alueellinen_yhteistyo/Mielenterveystyo/Terapeuttirekisteri/Ryhmapsykoterapia",
 ];
 
-cron.schedule('0 10 * * *', async () => {
-  console.log('running every day at 10:00');
+cron.schedule("0 10 * * *", async () => {
+  console.log("running every day at 10:00");
   try {
-    await parseLinks()
-    therapistHrefSet.clear()
+    await parseLinks();
+    therapistHrefSet.clear();
   } catch (error) {
-    console.error(error)
+    console.error(error);
   }
 });
 
@@ -64,7 +64,7 @@ client.connect().then(async () => {
   const forceUpdate = JSON.parse(process.env.FORCE_UPDATE as string);
   if (forceUpdate) {
     await parseLinks();
-    therapistHrefSet.clear()
+    therapistHrefSet.clear();
   }
   // await client.disconnect();
 });
@@ -73,6 +73,28 @@ const revalidateNext = async () => {
   return fetch(
     `${process.env.NEXT_URL}/api/revalidate?secret=${process.env.REVALIDATE_TOKEN}`
   ).then((res) => res.json().then((json) => console.log(json)));
+};
+
+const purgeCloudflare = async () => {
+  try {
+    await fetch(
+      `https://api.cloudflare.com/client/v4/zones/${process.env.CLOUDFLARE_ZONE}/purge_cache`,
+      {
+        method: "POST",
+        mode: "cors",
+        headers: {
+          Authorization: `Bearer ${process.env.CLOUDFLARE_API_KEY}`,
+        },
+        body: JSON.stringify({
+          purge_everything: true,
+        }),
+      }
+    )
+      .then((res) => res.json())
+      .then(console.log);
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const parseLinks = async () => {
@@ -87,9 +109,10 @@ const parseLinks = async () => {
   console.log(allTherapists);
   await client.set("therapists", JSON.stringify(allTherapists));
   try {
-    await revalidateNext()
+    await revalidateNext();
+    await purgeCloudflare();
   } catch (error) {
-    console.log(error)
+    console.log(error);
   }
 };
 
