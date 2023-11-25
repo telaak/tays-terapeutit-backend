@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import * as dotenv from "dotenv";
 import cron from "node-cron";
+import querystring from "node:querystring";
 
 dotenv.config();
 
@@ -60,6 +61,17 @@ app.get("/api/therapists", async (req, res) => {
   }
 });
 
+app.get("/api/revalidate", async (req, res) => {
+  try {
+    console.log("revalidate");
+    await revalidateEverything();
+    res.status(200).send();
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error);
+  }
+});
+
 client.connect().then(async () => {
   const forceUpdate = JSON.parse(process.env.FORCE_UPDATE as string);
   if (forceUpdate) {
@@ -69,10 +81,12 @@ client.connect().then(async () => {
   // await client.disconnect();
 });
 
-const revalidateNext = async () => {
-  return fetch(
-    `${process.env.NEXT_URL}/api/revalidate?secret=${process.env.REVALIDATE_TOKEN}`
-  ).then((res) => res.json().then((json) => console.log(json)));
+const revalidateNext = async (queryStringObject: any) => {
+  const queryString = querystring.encode(queryStringObject);
+  console.log(queryString);
+  return fetch(`${process.env.NEXT_URL}/api/revalidate?${queryString}`).then(
+    (res) => res.json().then((json) => console.log(json))
+  );
 };
 
 const purgeCloudflare = async () => {
@@ -97,6 +111,19 @@ const purgeCloudflare = async () => {
   }
 };
 
+async function revalidateEverything() {
+  const therapists = (await client.get("therapists")) as string;
+  const allTherapists = JSON.parse(therapists);
+  await revalidateNext({ secret: process.env.REVALIDATE_TOKEN, path: "/" });
+  for (const therapist of allTherapists) {
+    await revalidateNext({
+      secret: process.env.REVALIDATE_TOKEN,
+      path: `/${therapist.Etunimi} ${therapist.Sukunimi}`,
+    });
+  }
+  await purgeCloudflare();
+}
+
 const parseLinks = async () => {
   const allTherapists: any[] = [];
   for (const link of links) {
@@ -109,8 +136,7 @@ const parseLinks = async () => {
   console.log(allTherapists);
   await client.set("therapists", JSON.stringify(allTherapists));
   try {
-    await revalidateNext();
-    await purgeCloudflare();
+    await revalidateEverything();
   } catch (error) {
     console.log(error);
   }
