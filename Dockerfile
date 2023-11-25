@@ -1,11 +1,11 @@
-FROM node:18-alpine as base
+FROM node:20-bookworm-slim as base
 
 WORKDIR /app
 COPY . .
 RUN npm i
 RUN npm run build
 
-FROM node:18-alpine as runner
+FROM node:20-bookworm-slim as runner
 WORKDIR /app
 COPY --from=base ./app/dist ./dist
 COPY package*.json ./
