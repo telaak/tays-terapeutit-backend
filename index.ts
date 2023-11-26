@@ -38,6 +38,7 @@ app.get("/api/therapists", async (req, res) => {
 app.post("/internal/therapists", async (req, res) => {
   try {
     await client.set("therapists", JSON.stringify(req.body));
+    await revalidateEverything();
     res.status(200).send();
   } catch (error) {
     console.error(error);
