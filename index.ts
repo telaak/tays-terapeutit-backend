@@ -83,7 +83,9 @@ async function revalidateEverything() {
   for (const therapist of allTherapists) {
     await revalidateNext({
       secret: process.env.REVALIDATE_TOKEN,
-      path: `/${therapist.Etunimi} ${therapist.Sukunimi}`,
+      path: `/${(therapist.Etunimi as string).toLowerCase()}-${(
+        therapist.Sukunimi as string
+      ).toLowerCase()}`,
     });
   }
   await purgeCloudflare();
